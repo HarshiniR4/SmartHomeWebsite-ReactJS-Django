@@ -1,0 +1,3393 @@
+{
+    "type": "MySQLNotebook",
+    "version": "1.0",
+    "caption": "DB Notebook",
+    "content": "\\about\n-- Create SHEMS database\nCREATE DATABASE IF NOT EXISTS SHEMS;\nUSE SHEMS;\n-- Create Customer table\nCREATE TABLE Customer (\n    CustomerID INT PRIMARY KEY,\n    Name VARCHAR(255),\n    BillingAddress VARCHAR(255)\n);\n-- Create ServiceLocation table\nCREATE TABLE ServiceLocation (\n    LocationID INT PRIMARY KEY,\n    CustomerID INT,\n    Address VARCHAR(255),\n    UnitNumber VARCHAR(50),\n    MoveInDate DATE,\n    SquareFootage INT,\n    Bedrooms INT,\n    Occupants INT,\n    FOREIGN KEY (CustomerID) REFERENCES Customer(CustomerID)\n);\n-- Create DeviceModel table\nCREATE TABLE DeviceModel (\n    ModelID INT PRIMARY KEY,\n    Type VARCHAR(50),\n    ModelNumber VARCHAR(50)\n);\n-- Create EnrolledDevice table\nCREATE TABLE EnrolledDevice (\n    DeviceID INT PRIMARY KEY,\n    LocationID INT,\n    ModelID INT,\n    FOREIGN KEY (LocationID) REFERENCES ServiceLocation(LocationID),\n    FOREIGN KEY (ModelID) REFERENCES DeviceModel(ModelID)\n);\n-- Create DeviceData table\nCREATE TABLE DeviceData (\n    DataID INT PRIMARY KEY,\n    DeviceID INT,\n    Timestamp DATETIME,\n    EventLabel VARCHAR(50),\n    Value VARCHAR(255),\n    FOREIGN KEY (DeviceID) REFERENCES EnrolledDevice(DeviceID)\n);\n\n-- Create EnergyPrice table\nCREATE TABLE EnergyPrice (\n    PriceID INT PRIMARY KEY,\n    ZipCode VARCHAR(10),\n    HourlyRate DECIMAL(5, 2),\n    EffectiveDate DATE,\n    EndDate DATE,\n    CHECK (HourlyRate >= 0)\n);\n-- Insert values into Customer table\nINSERT INTO Customer (CustomerID, Name, BillingAddress) VALUES\n    (1, 'John Doe', '123 Main St, CityA'),\n    (2, 'Jane Smith', '456 Oak St, CityB'),\n    (3, 'Bob Johnson', '789 Elm St, CityC');\n-- Insert values into ServiceLocation table\nINSERT INTO ServiceLocation (LocationID, CustomerID, Address, UnitNumber, MoveInDate, SquareFootage, Bedrooms, Occupants) VALUES\n    (1, 1, '123 Main St, CityA', 'Apt 101', '2022-01-15', 1200, 2, 2),\n    (2, 2, '456 Oak St, CityB', 'Apt 202', '2023-02-01', 1000, 1, 1),\n    (3, 3, '789 Elm St, CityC', 'House', '2022-05-10', 2000, 3, 4);\n-- Insert values into DeviceModel table\nINSERT INTO DeviceModel (ModelID, Type, ModelNumber) VALUES\n    (1, 'AC system', 'AC123'),\n    (2, 'Light', 'Light456'),\n    (3, 'Refrigerator', 'Fridge789');\n   \n-- Insert values into EnrolledDevice table\nINSERT INTO EnrolledDevice (DeviceID, LocationID, ModelID) VALUES\n    (1, 1, 1),\n    (2, 1, 2),\n    (3, 2, 3);\n-- Insert values into DeviceData table\nINSERT INTO DeviceData (DataID, DeviceID, Timestamp, EventLabel, Value) VALUES\n    (1, 1, '2023-01-15 12:00:00', 'switched on', 'true'),\n    (2, 2, '2023-01-15 18:30:00', 'brightness changed', '75'),\n    (3, 3, '2023-02-01 08:45:00', 'door opened', 'null');\n-- Insert values into EnergyPrice table\nINSERT INTO EnergyPrice (PriceID, ZipCode, HourlyRate, EffectiveDate, EndDate) VALUES\n    (1, '10001', 0.12, '2023-01-01', '2023-02-01'),\n    (2, '10001', 0.15, '2023-02-02', null),\n    (3, '20001', 0.10, '2023-01-01', null);\n-- 1. List all enrolled devices with their total energy\n-- consumption in the last 24 hours for a specific customer identified by customer ID.\n\nSELECT\n    ed.DeviceID,\n    ed.LocationID,\n    dd.EventLabel,\n    SUM(CASE WHEN dd.Timestamp >= NOW() - INTERVAL 24 HOUR THEN dd.Value ELSE 0 END) AS TotalEnergyConsumption\nFROM\n    EnrolledDevice ed\n    JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\nWHERE\n    ed.LocationID IN (SELECT LocationID FROM ServiceLocation WHERE CustomerID = 1) -- Replace 123 with the actual customer ID\nGROUP BY\n    ed.DeviceID, ed.LocationID, dd.EventLabel;\n\nINSERT INTO EnergyPrice (PriceID, ZipCode, HourlyRate, EffectiveDate, EndDate) VALUES\n(5, '10001', 0.13, '2023-11-25', '2023-11-27');\nINSERT INTO DeviceData (DataID, DeviceID, Timestamp, EventLabel, Value) VALUES\n(5, 1, '2023-11-26 12:00:00', 'switched off', 'true')\nSELECT\n    ed.DeviceID,\n    ed.LocationID,\n    dd.EventLabel,\n    SUM(CASE WHEN dd.Timestamp >= NOW() - INTERVAL 24 HOUR THEN CAST(dd.Value AS DECIMAL(10, 2)) ELSE 0 END) AS TotalEnergyConsumption\nFROM\n    EnrolledDevice ed\n    JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\nWHERE\n    ed.LocationID IN (SELECT LocationID FROM ServiceLocation WHERE CustomerID = 1) -- Replace 123 with the actual customer ID\nGROUP BY\n    ed.DeviceID, ed.LocationID, dd.EventLabel;\n\n-- Add a new column for the numeric Value\nALTER TABLE DeviceData\nADD COLUMN NumericValue DECIMAL(10, 2);\n\n-- Update the new column with the numeric values from the existing Value column\nUPDATE DeviceData\nSET NumericValue = CAST(Value AS DECIMAL(10, 2));\n\n-- Drop the old Value column\nALTER TABLE DeviceData\nDROP COLUMN Value;\n\n-- Rename the new column to Value\nALTER TABLE DeviceData\nCHANGE COLUMN NumericValue Value DECIMAL(10, 2);\n\n-- Add a new column for the numeric Value\nALTER TABLE DeviceData\nADD COLUMN NumericValue DECIMAL(10, 2);\n\n-- Update the new column with the numeric values from the existing Value column (handling non-numeric values)\nUPDATE DeviceData\nSET NumericValue = CASE \n                    WHEN Value NOT REGEXP '^[0-9]*\\.?[0-9]+$' THEN 0\n                    ELSE CAST(Value AS DECIMAL(10, 2))\n                 END;\n\n-- Drop the old Value column\nALTER TABLE DeviceData\nDROP COLUMN Value;\n\n-- Rename the new column to Value\nALTER TABLE DeviceData\nCHANGE COLUMN NumericValue Value DECIMAL(10, 2);\n\nselect * from devicedata;\nDELETE FROM DeviceData;\n\nselect * from devicedata;\n-- Insert values into DeviceData table\nINSERT INTO DeviceData (DataID, DeviceID, Timestamp, EventLabel, Value) VALUES\n    (1, 1, '2023-11-25 12:00:00', 'switched on', 78),\n    (2, 2, '2023-11-15 18:30:00', 'brightness changed', 75),\n    (3, 3, '2023-02-01 08:45:00', 'door opened', 0),\n    (4, 1, '2023-11-26 15:00:00', 'switched off', 86 ),\n    (5, 3, '2023-11-26 12:00:00', 'door closed', 13.7);\nselect * from devicedata;\nSELECT\n    ed.DeviceID,\n    ed.LocationID,\n    dd.EventLabel,\n    SUM(CASE WHEN dd.Timestamp >= NOW() - INTERVAL 24 HOUR THEN CAST(dd.Value AS DECIMAL(10, 2)) ELSE 0 END) AS TotalEnergyConsumption\nFROM\n    EnrolledDevice ed\n    JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\nWHERE\n    ed.LocationID IN (SELECT LocationID FROM ServiceLocation WHERE CustomerID = 1) -- Replace 123 with the actual customer ID\nGROUP BY\n    ed.DeviceID, ed.LocationID, dd.EventLabel;\n\nSELECT\n    ed.DeviceID,\n    ed.LocationID,\n    dd.EventLabel,\n    SUM(CASE WHEN dd.Timestamp >= NOW() - INTERVAL 24 HOUR THEN CAST(dd.Value AS DECIMAL(10, 2)) ELSE 0 END) AS TotalEnergyConsumption\nFROM\n    EnrolledDevice ed\n    JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\nWHERE\n    ed.LocationID IN (SELECT LocationID FROM ServiceLocation WHERE CustomerID = 2) -- Replace 123 with the actual customer ID\nGROUP BY\n    ed.DeviceID, ed.LocationID, dd.EventLabel;\n\nSELECT\n    ed.DeviceID,\n    ed.LocationID,\n    dd.EventLabel,\n    SUM(CASE WHEN dd.Timestamp >= NOW() - INTERVAL 24 HOUR THEN CAST(dd.Value AS DECIMAL(10, 2)) ELSE 0 END) AS TotalEnergyConsumption\nFROM\n    EnrolledDevice ed\n    JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\nWHERE\n    ed.LocationID IN (SELECT LocationID FROM ServiceLocation WHERE CustomerID = 3) -- Replace 123 with the actual customer ID\nGROUP BY\n    ed.DeviceID, ed.LocationID, dd.EventLabel;\n\n-- Calculate the average monthly energy consumption per device type, for the month of August 2022, \n-- considering only devices that have been on at least once during that month.\n\nSELECT\n    dm.Type,\n    AVG(dd.Value) AS AverageMonthlyEnergyConsumption\nFROM\n    DeviceModel dm\n    JOIN EnrolledDevice ed ON dm.ModelID = ed.ModelID\n    JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\nWHERE\n    dd.Timestamp BETWEEN '2022-08-01' AND '2022-08-31'\nGROUP BY\n    dm.Type;\n\n-- Insert values into DeviceData table\nINSERT INTO DeviceData (DataID, DeviceID, Timestamp, EventLabel, Value) VALUES\n    (6, 1, '2023-08-25 12:00:00', 'switched on', 70.8),\n    (7, 2, '2023-08-05 19:30:00', 'brightness changed', 69.5);\n-- Calculate the average monthly energy consumption per device type, for the month of August 2022, \n-- considering only devices that have been on at least once during that month.\n\nSELECT\n    dm.Type,\n    AVG(dd.Value) AS AverageMonthlyEnergyConsumption\nFROM\n    DeviceModel dm\n    JOIN EnrolledDevice ed ON dm.ModelID = ed.ModelID\n    JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\nWHERE\n    dd.Timestamp BETWEEN '2022-08-01' AND '2022-08-31'\nGROUP BY\n    dm.Type;\n\n-- Insert values into DeviceData table\nINSERT INTO DeviceData (DataID, DeviceID, Timestamp, EventLabel, Value) VALUES\n    (8, 1, '2022-08-25 12:00:00', 'switched on', 70.8),\n    (9, 2, '2022-08-05 19:30:00', 'brightness changed', 69.5);\nselect * from devicedata;\nselect * from devicemodel;\n-- 3. Identify cases where a refrigerator door was left open for more than 30 minutes. \n-- Output the date and time, the service location, the device ID, and the refrigerator model.\n\nSELECT\n    TIME(dd.Timestamp),\n    dd.Timestamp,\n    sl.LocationID,\n    ed.DeviceID,\n    dm.ModelNumber AS RefrigeratorModel\nFROM\n    DeviceData dd\n    JOIN EnrolledDevice ed ON dd.DeviceID = ed.DeviceID\n    JOIN ServiceLocation sl ON ed.LocationID = sl.LocationID\n    JOIN DeviceModel dm ON ed.ModelID = dm.ModelID\nWHERE\n    dd.EventLabel = 'door opened'\n    AND TIMESTAMPDIFF(MINUTE, dd.Timestamp, (SELECT MIN(Timestamp) FROM DeviceData WHERE DeviceID = ed.DeviceID AND EventLabel = 'door closed')) > 30;\n\n-- 4. Calculate the total energy cost for each service location during August 2022, \n-- considering the hourly changing energy prices based on zip code.\n\nSELECT\n    sl.LocationID,\n    SUM((dd.Value * ep.HourlyRate) / 12) AS TotalEnergyCost\nFROM\n    ServiceLocation sl\n    JOIN EnrolledDevice ed ON sl.LocationID = ed.LocationID\n    JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\n    JOIN EnergyPrice ep ON dd.Timestamp BETWEEN ep.EffectiveDate AND COALESCE(ep.EndDate, NOW())\nWHERE\n    dd.Timestamp BETWEEN '2022-08-01' AND '2022-08-31'\nGROUP BY\n    sl.LocationID;\nselect * from energyprice;\nselect * from servicelocation;\nselect address from servicelocation;\n-- Add ZipCode column to ServiceLocation table\nALTER TABLE ServiceLocation\nADD COLUMN ZipCode VARCHAR(10);\nUPDATE ServiceLocation\nSET ZipCode = '10001'\nWHERE CustomerID = 1;\nUPDATE ServiceLocation\nSET ZipCode = '10001'\nWHERE CustomerID = 2;\n-- Calculate the total energy cost for each service location during August 2022, considering the hourly changing energy prices based on zip code\nSELECT\n    sl.LocationID,\n    dd.Timestamp,\n    SUM((dd.Value * ep.HourlyRate) / 12) AS TotalEnergyCost\nFROM\n    ServiceLocation sl\n    JOIN EnrolledDevice ed ON sl.LocationID = ed.LocationID\n    JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\n    JOIN EnergyPrice ep ON sl.ZipCode = ep.ZipCode AND dd.Timestamp BETWEEN ep.EffectiveDate AND COALESCE(ep.EndDate, NOW())\n\nGROUP BY\n    sl.LocationID, dd.Timestamp;\n\nselect * from devicedata;\nSELECT * from enrolleddevice;\n-- Insert values into DeviceData table\nINSERT INTO DeviceData (DataID, DeviceID, Timestamp, EventLabel, Value) VALUES\n    (10, 1, '2022-08-15 12:00:00', 'switched on', 2.7),\n    (11, 1, '2022-08-05 18:30:00', 'brightness changed', 7.6),\n    (12, 1, '2022-08-01 08:45:00', 'door opened', 8);\n-- Calculate the total energy cost for each service location during August 2022, considering the hourly changing energy prices based on zip code\nSELECT\n    sl.LocationID,\n    dd.Timestamp,\n    SUM((dd.Value * ep.HourlyRate) / 12) AS TotalEnergyCost\nFROM\n    ServiceLocation sl\n    JOIN EnrolledDevice ed ON sl.LocationID = ed.LocationID\n    JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\n    JOIN EnergyPrice ep ON sl.ZipCode = ep.ZipCode AND dd.Timestamp BETWEEN ep.EffectiveDate AND COALESCE(ep.EndDate, NOW())\n\nGROUP BY\n    sl.LocationID, dd.Timestamp;\n\nselect * from energyprice;\n-- Insert values into EnergyPrice table\nINSERT INTO EnergyPrice (PriceID, ZipCode, HourlyRate, EffectiveDate, EndDate) VALUES\n    (6, '10001', 0.12, '2022-08-01', '2023-02-01'),\n    (7, '10001', 0.25, '2022-08-02', '2022-10-20');\nselect * from energyprice;\n-- Calculate the total energy cost for each service location during August 2022, \n-- considering the hourly changing energy prices based on zip code\nSELECT\n    sl.LocationID,\n    dd.Timestamp,\n    SUM((dd.Value * ep.HourlyRate) / 12) AS TotalEnergyCost\nFROM\n    ServiceLocation sl\n    JOIN EnrolledDevice ed ON sl.LocationID = ed.LocationID\n    JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\n    JOIN EnergyPrice ep ON sl.ZipCode = ep.ZipCode AND dd.Timestamp BETWEEN ep.EffectiveDate AND COALESCE(ep.EndDate, NOW())\nWHERE\n    dd.Timestamp BETWEEN '2022-08-01' AND '2022-08-31'\nGROUP BY\n    sl.LocationID, dd.Timestamp;\n\n-- 5. For each service location, compute its total energy consumption during August 2022, \n-- as a percentage of the average total energy consumption during the same time of other service locations that\n--  have a similar square footage.\nSELECT\n    sl.LocationID,\n    SUM(dd.Value) AS TotalEnergyConsumption,\n    SUM(dd.Value) / COALESCE(avg_table.avg_total_energy, 1) * 100 AS PercentageOfAverage\nFROM\n    ServiceLocation sl\n    JOIN EnrolledDevice ed ON sl.LocationID = ed.LocationID\n    JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\n    LEFT JOIN (\n        SELECT\n            sl_other.LocationID,\n            AVG(SUM(dd_other.Value)) AS avg_total_energy\n        FROM\n            ServiceLocation sl_other\n            JOIN EnrolledDevice ed_other ON sl_other.LocationID = ed_other.LocationID\n            JOIN DeviceData dd_other ON ed_other.DeviceID = dd_other.DeviceID\n        WHERE\n            dd_other.Timestamp BETWEEN '2022-08-01' AND '2022-08-31'\n        GROUP BY\n            sl_other.LocationID\n    ) AS avg_table ON sl.LocationID <> avg_table.LocationID\nWHERE\n    dd.Timestamp BETWEEN '2022-08-01' AND '2022-08-31'\nGROUP BY\n    sl.LocationID, avg_table.avg_total_energy;\n\n\n-- 6.Identify service location(s) that had the highest percentage increase in energy consumption\n-- between August and September of 2022.\n\nWITH MonthlyEnergy AS (\n    SELECT\n        sl.LocationID,\n        MONTH(dd.Timestamp) AS Month,\n        SUM(dd.Value) AS TotalEnergyConsumption\n    FROM\n        ServiceLocation sl\n        JOIN EnrolledDevice ed ON sl.LocationID = ed.LocationID\n        JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\n    WHERE\n        dd.Timestamp BETWEEN '2022-08-01' AND '2022-08-31'\n    GROUP BY\n        sl.LocationID, MONTH(dd.Timestamp)\n)\n\nSELECT\n    me1.LocationID,\n    me1.TotalEnergyConsumption AS EnergyConsumptionAugust,\n    me2.TotalEnergyConsumption AS EnergyConsumptionSeptember,\n    ((me2.TotalEnergyConsumption - me1.TotalEnergyConsumption) / me1.TotalEnergyConsumption) * 100 AS PercentageIncrease\nFROM\n    MonthlyEnergy me1\n    JOIN MonthlyEnergy me2 ON me1.LocationID = me2.LocationID AND me1.Month = 8 AND me2.Month = 9\nORDER BY\n    PercentageIncrease DESC\nLIMIT 1;\n\n",
+    "options": {
+        "tabSize": 4,
+        "indentSize": 4,
+        "insertSpaces": true,
+        "defaultEOL": "LF",
+        "trimAutoWhitespace": true
+    },
+    "viewState": {
+        "cursorState": [
+            {
+                "inSelectionMode": false,
+                "selectionStart": {
+                    "lineNumber": 394,
+                    "column": 2
+                },
+                "position": {
+                    "lineNumber": 394,
+                    "column": 2
+                }
+            }
+        ],
+        "viewState": {
+            "scrollLeft": 0,
+            "firstPosition": {
+                "lineNumber": 382,
+                "column": 1
+            },
+            "firstPositionDeltaTop": -4
+        },
+        "contributionsState": {
+            "editor.contrib.folding": {},
+            "editor.contrib.wordHighlighter": false
+        }
+    },
+    "contexts": [
+        {
+            "state": {
+                "start": 1,
+                "end": 1,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 2,
+                            "content": "Welcome to the MySQL Shell - DB Notebook.\n\nPress Ctrl+Enter to execute the code block.\n\nExecute \\sql to switch to SQL, \\js to JavaScript and \\ts to TypeScript mode.\nExecute \\help or \\? for help;Welcome to the MySQL Shell - DB Notebook.\n\nPress Ctrl+Enter to execute the code block.\n\nExecute \\sql to switch to SQL, \\js to JavaScript and \\ts to TypeScript mode.\nExecute \\help or \\? for help;",
+                            "language": "ansi"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 6
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 2,
+                "end": 4,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "f33d5d1d-b98d-40db-bd6a-2bdefb82d743",
+                            "content": "OK, 1 row affected in 35.446ms"
+                        },
+                        {
+                            "type": 4,
+                            "index": 1,
+                            "resultId": "b78e68d5-9fd2-4670-ed4d-2a412fbf7c81",
+                            "content": "OK, 0 records retrieved in 3.512ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 61
+                        },
+                        "contentStart": 25,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 61,
+                            "length": 11
+                        },
+                        "contentStart": 62,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 72,
+                            "length": 0
+                        },
+                        "contentStart": 71,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 5,
+                "end": 10,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "5204c564-f9fb-4d56-826e-1166b3f3b60f",
+                            "content": "OK, 0 records retrieved in 75.638ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 138
+                        },
+                        "contentStart": 25,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 11,
+                "end": 22,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "0106ffc3-1953-4e15-97f6-f037fae5cc04",
+                            "content": "OK, 0 records retrieved in 34.301ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 313
+                        },
+                        "contentStart": 32,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 23,
+                "end": 28,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "35189202-0aca-430e-e94f-835b1e816f15",
+                            "content": "OK, 0 records retrieved in 20.282ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 136
+                        },
+                        "contentStart": 28,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 29,
+                "end": 36,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "bf181b80-6171-40f8-d1c2-8528fa7ccbc9",
+                            "content": "OK, 0 records retrieved in 89.96ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 257
+                        },
+                        "contentStart": 31,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 37,
+                "end": 46,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "fd5a5190-1052-4cd8-9f06-56c1f948de4f",
+                            "content": "OK, 0 records retrieved in 26.98ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 240
+                        },
+                        "contentStart": 27,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 240,
+                            "length": 1
+                        },
+                        "contentStart": 239,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 47,
+                "end": 55,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "f9cd7d67-6e01-47d3-c7a4-5ac68dfa3f40",
+                            "content": "OK, 0 records retrieved in 17.421ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 211
+                        },
+                        "contentStart": 28,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 56,
+                "end": 60,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "fddb754b-c0b1-4570-aa76-f2add568f1c8",
+                            "content": "OK, 3 rows affected in 14.386ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 231
+                        },
+                        "contentStart": 37,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 61,
+                "end": 65,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "b822013e-d7b5-486b-c33a-9a83f4da2c06",
+                            "content": "OK, 3 rows affected in 6.093ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 381
+                        },
+                        "contentStart": 44,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 66,
+                "end": 71,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "d06a0444-3a40-437d-ebcb-36d7b332360f",
+                            "content": "OK, 3 rows affected in 8.168ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 198
+                        },
+                        "contentStart": 40,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 198,
+                            "length": 4
+                        },
+                        "contentStart": 197,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 72,
+                "end": 76,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "d5385a49-f5c2-4429-e86f-726f6376061d",
+                            "content": "OK, 3 rows affected in 3.051ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 153
+                        },
+                        "contentStart": 43,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 77,
+                "end": 81,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "ee6a8013-0335-44e8-b278-a142b5d6bd93",
+                            "content": "OK, 3 rows affected in 8.049ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 296
+                        },
+                        "contentStart": 39,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 82,
+                "end": 86,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "87211bf4-7449-41c8-f758-7a66d94b22c8",
+                            "content": "OK, 3 rows affected in 6.252ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 265
+                        },
+                        "contentStart": 40,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 87,
+                "end": 102,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "0a6ffe99-8eee-4f1d-82ca-e6676fbae49e"
+                    ]
+                },
+                "currentHeight": 36,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 583
+                        },
+                        "contentStart": 144,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 583,
+                            "length": 1
+                        },
+                        "contentStart": 582,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "30e0efe1-426e-4e3f-ce8f-cd96cd21f845",
+                    "resultId": "0a6ffe99-8eee-4f1d-82ca-e6676fbae49e",
+                    "rows": [
+                        {
+                            "0": 1,
+                            "1": 1,
+                            "2": "switched on",
+                            "3": 0
+                        },
+                        {
+                            "0": 1,
+                            "1": 1,
+                            "2": "switched off",
+                            "3": 0
+                        },
+                        {
+                            "0": 2,
+                            "1": 1,
+                            "2": "brightness changed",
+                            "3": 0
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "DeviceID",
+                            "field": "0",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "LocationID",
+                            "field": "1",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "EventLabel",
+                            "field": "2",
+                            "dataType": {
+                                "type": 17
+                            }
+                        },
+                        {
+                            "title": "TotalEnergyConsumption",
+                            "field": "3",
+                            "dataType": {
+                                "type": 9
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 3 records retrieved in 1.395ms"
+                    },
+                    "totalRowCount": 3,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "-- 1. List all enrolled devices with their total energy\n-- consumption in the last 24 hours for a specific customer identified by customer ID.\n\nSELECT\n    ed.DeviceID,\n    ed.LocationID,\n    dd.EventLabel,\n    SUM(CASE WHEN dd.Timestamp >= NOW() - INTERVAL 24 HOUR THEN dd.Value ELSE 0 END) AS TotalEnergyConsumption\nFROM\n    EnrolledDevice ed\n    JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\nWHERE\n    ed.LocationID IN (SELECT LocationID FROM ServiceLocation WHERE CustomerID = 1) -- Replace 123 with the actual customer ID\nGROUP BY\n    ed.DeviceID, ed.LocationID, dd.EventLabel"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 103,
+                "end": 104,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "9ffd7a3a-85fc-40d4-ed24-e3b12cfa4e9d",
+                            "content": "OK, 1 row affected in 6.362ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 133
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 105,
+                "end": 106,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "466a1e1e-be14-4ffa-a8a9-bb2ac534f740",
+                            "content": "OK, 1 row affected in 4.594ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 132
+                        },
+                        "contentStart": 0,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 107,
+                "end": 119,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "224fe49b-a97b-44cc-933f-f802d7b6aefa"
+                    ]
+                },
+                "currentHeight": 36,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 463
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 463,
+                            "length": 1
+                        },
+                        "contentStart": 462,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "30e0efe1-426e-4e3f-ce8f-cd96cd21f845",
+                    "resultId": "224fe49b-a97b-44cc-933f-f802d7b6aefa",
+                    "rows": [
+                        {
+                            "0": 1,
+                            "1": 1,
+                            "2": "switched on",
+                            "3": "0.00"
+                        },
+                        {
+                            "0": 1,
+                            "1": 1,
+                            "2": "switched off",
+                            "3": "0.00"
+                        },
+                        {
+                            "0": 2,
+                            "1": 1,
+                            "2": "brightness changed",
+                            "3": "0.00"
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "DeviceID",
+                            "field": "0",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "LocationID",
+                            "field": "1",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "EventLabel",
+                            "field": "2",
+                            "dataType": {
+                                "type": 17
+                            }
+                        },
+                        {
+                            "title": "TotalEnergyConsumption",
+                            "field": "3",
+                            "dataType": {
+                                "type": 10
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 3 records retrieved in 4.511ms"
+                    },
+                    "totalRowCount": 3,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "SELECT\n    ed.DeviceID,\n    ed.LocationID,\n    dd.EventLabel,\n    SUM(CASE WHEN dd.Timestamp >= NOW() - INTERVAL 24 HOUR THEN CAST(dd.Value AS DECIMAL(10, 2)) ELSE 0 END) AS TotalEnergyConsumption\nFROM\n    EnrolledDevice ed\n    JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\nWHERE\n    ed.LocationID IN (SELECT LocationID FROM ServiceLocation WHERE CustomerID = 1) -- Replace 123 with the actual customer ID\nGROUP BY\n    ed.DeviceID, ed.LocationID, dd.EventLabel"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 120,
+                "end": 135,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "1d522666-f367-4054-ead2-b592b5f2338b",
+                            "content": "OK, 0 records retrieved in 28.523ms"
+                        },
+                        {
+                            "type": 0,
+                            "index": 1,
+                            "content": "MySQL Error (1366): ClassicSession.run_sql: Incorrect DECIMAL value: '0' for column '' at row -1",
+                            "language": "ansi"
+                        },
+                        {
+                            "type": 4,
+                            "index": 2,
+                            "resultId": "d2eea294-d2c8-44cf-9a60-b91ea8b4e275",
+                            "content": "OK, 0 records retrieved in 16.138ms"
+                        },
+                        {
+                            "type": 4,
+                            "index": 3,
+                            "resultId": "a3828ed9-767b-470a-82e0-3875e417915d",
+                            "content": "OK, 0 records retrieved in 14.738ms"
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": ""
+                    }
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 104
+                        },
+                        "contentStart": 42,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 104,
+                            "length": 149
+                        },
+                        "contentStart": 186,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 253,
+                            "length": 72
+                        },
+                        "contentStart": 284,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 325,
+                            "length": 107
+                        },
+                        "contentStart": 361,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 432,
+                            "length": 1
+                        },
+                        "contentStart": 431,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 136,
+                "end": 154,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "0401da93-afa3-4486-b0d5-7f3fd595faf0",
+                            "content": "OK, 0 records retrieved in 14.455ms"
+                        },
+                        {
+                            "type": 4,
+                            "index": 1,
+                            "resultId": "fcc89d5d-43be-42e5-8a85-0df0a87b91d8",
+                            "content": "OK, 0 records retrieved in 19.515ms"
+                        },
+                        {
+                            "type": 4,
+                            "index": 2,
+                            "resultId": "c899c382-946d-4c8d-8518-5f96dffca0af",
+                            "content": "OK, 0 records retrieved in 16.036ms"
+                        },
+                        {
+                            "type": 4,
+                            "index": 3,
+                            "resultId": "f5150bbc-eea4-4d56-9dba-502dbb777291",
+                            "content": "OK, 0 records retrieved in 19.836ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 104
+                        },
+                        "contentStart": 42,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 104,
+                            "length": 300
+                        },
+                        "contentStart": 216,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 404,
+                            "length": 72
+                        },
+                        "contentStart": 435,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 476,
+                            "length": 107
+                        },
+                        "contentStart": 512,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 583,
+                            "length": 1
+                        },
+                        "contentStart": 582,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 155,
+                "end": 155,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "ac2d41a5-52c5-4a7e-cf07-fc5b94808a56"
+                    ]
+                },
+                "currentHeight": 36,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 25
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "30e0efe1-426e-4e3f-ce8f-cd96cd21f845",
+                    "resultId": "ac2d41a5-52c5-4a7e-cf07-fc5b94808a56",
+                    "rows": [
+                        {
+                            "0": 1,
+                            "1": 1,
+                            "2": "2023-01-15 12:00:00",
+                            "3": "switched on",
+                            "4": null
+                        },
+                        {
+                            "0": 2,
+                            "1": 2,
+                            "2": "2023-01-15 18:30:00",
+                            "3": "brightness changed",
+                            "4": null
+                        },
+                        {
+                            "0": 3,
+                            "1": 3,
+                            "2": "2023-02-01 08:45:00",
+                            "3": "door opened",
+                            "4": null
+                        },
+                        {
+                            "0": 4,
+                            "1": 1,
+                            "2": "2023-11-25 12:00:00",
+                            "3": "switched on",
+                            "4": null
+                        },
+                        {
+                            "0": 5,
+                            "1": 1,
+                            "2": "2023-11-26 12:00:00",
+                            "3": "switched off",
+                            "4": null
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "DataID",
+                            "field": "0",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "DeviceID",
+                            "field": "1",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "Timestamp",
+                            "field": "2",
+                            "dataType": {
+                                "type": 26
+                            }
+                        },
+                        {
+                            "title": "EventLabel",
+                            "field": "3",
+                            "dataType": {
+                                "type": 17
+                            }
+                        },
+                        {
+                            "title": "Value",
+                            "field": "4",
+                            "dataType": {
+                                "type": 10
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 5 records retrieved in 0s"
+                    },
+                    "totalRowCount": 5,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "select * from devicedata"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 156,
+                "end": 157,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "e3ab73ef-e968-4527-b25e-955c2d257f00",
+                            "content": "OK, 5 rows affected in 5.021ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 23
+                        },
+                        "contentStart": 1,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 23,
+                            "length": 1
+                        },
+                        "contentStart": 22,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 158,
+                "end": 158,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "281bcc6c-c77d-496c-e81b-044b1b73deb2",
+                            "content": "OK, 0 records retrieved in 0s"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 25
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 159,
+                "end": 165,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "f781835e-8c3a-4424-8469-f73852f53c2f",
+                            "content": "OK, 5 rows affected in 5.48ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 397
+                        },
+                        "contentStart": 39,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 166,
+                "end": 166,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "fc324329-be68-4559-938d-baf8038bd079"
+                    ]
+                },
+                "currentHeight": 36,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 25
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "30e0efe1-426e-4e3f-ce8f-cd96cd21f845",
+                    "resultId": "fc324329-be68-4559-938d-baf8038bd079",
+                    "rows": [
+                        {
+                            "0": 1,
+                            "1": 1,
+                            "2": "2023-11-25 12:00:00",
+                            "3": "switched on",
+                            "4": "78.00"
+                        },
+                        {
+                            "0": 2,
+                            "1": 2,
+                            "2": "2023-11-15 18:30:00",
+                            "3": "brightness changed",
+                            "4": "75.00"
+                        },
+                        {
+                            "0": 3,
+                            "1": 3,
+                            "2": "2023-02-01 08:45:00",
+                            "3": "door opened",
+                            "4": "0.00"
+                        },
+                        {
+                            "0": 4,
+                            "1": 1,
+                            "2": "2023-11-26 15:00:00",
+                            "3": "switched off",
+                            "4": "86.00"
+                        },
+                        {
+                            "0": 5,
+                            "1": 3,
+                            "2": "2023-11-26 12:00:00",
+                            "3": "door closed",
+                            "4": "13.70"
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "DataID",
+                            "field": "0",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "DeviceID",
+                            "field": "1",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "Timestamp",
+                            "field": "2",
+                            "dataType": {
+                                "type": 26
+                            }
+                        },
+                        {
+                            "title": "EventLabel",
+                            "field": "3",
+                            "dataType": {
+                                "type": 17
+                            }
+                        },
+                        {
+                            "title": "Value",
+                            "field": "4",
+                            "dataType": {
+                                "type": 10
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 5 records retrieved in 2.321ms"
+                    },
+                    "totalRowCount": 5,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "select * from devicedata"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 167,
+                "end": 179,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "1ad8e4bb-67e7-4a1f-99d9-e18f76aa0707"
+                    ]
+                },
+                "currentHeight": 36,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 463
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 463,
+                            "length": 1
+                        },
+                        "contentStart": 462,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "30e0efe1-426e-4e3f-ce8f-cd96cd21f845",
+                    "resultId": "1ad8e4bb-67e7-4a1f-99d9-e18f76aa0707",
+                    "rows": [
+                        {
+                            "0": 1,
+                            "1": 1,
+                            "2": "switched on",
+                            "3": "0.00"
+                        },
+                        {
+                            "0": 1,
+                            "1": 1,
+                            "2": "switched off",
+                            "3": "86.00"
+                        },
+                        {
+                            "0": 2,
+                            "1": 1,
+                            "2": "brightness changed",
+                            "3": "0.00"
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "DeviceID",
+                            "field": "0",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "LocationID",
+                            "field": "1",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "EventLabel",
+                            "field": "2",
+                            "dataType": {
+                                "type": 17
+                            }
+                        },
+                        {
+                            "title": "TotalEnergyConsumption",
+                            "field": "3",
+                            "dataType": {
+                                "type": 10
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 3 records retrieved in 0s"
+                    },
+                    "totalRowCount": 3,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "SELECT\n    ed.DeviceID,\n    ed.LocationID,\n    dd.EventLabel,\n    SUM(CASE WHEN dd.Timestamp >= NOW() - INTERVAL 24 HOUR THEN CAST(dd.Value AS DECIMAL(10, 2)) ELSE 0 END) AS TotalEnergyConsumption\nFROM\n    EnrolledDevice ed\n    JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\nWHERE\n    ed.LocationID IN (SELECT LocationID FROM ServiceLocation WHERE CustomerID = 1) -- Replace 123 with the actual customer ID\nGROUP BY\n    ed.DeviceID, ed.LocationID, dd.EventLabel"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 180,
+                "end": 192,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "87323d52-5618-4950-a6dc-75bf87ddd3e1"
+                    ]
+                },
+                "currentHeight": 36,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 463
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 463,
+                            "length": 1
+                        },
+                        "contentStart": 462,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "30e0efe1-426e-4e3f-ce8f-cd96cd21f845",
+                    "resultId": "87323d52-5618-4950-a6dc-75bf87ddd3e1",
+                    "rows": [
+                        {
+                            "0": 3,
+                            "1": 2,
+                            "2": "door opened",
+                            "3": "0.00"
+                        },
+                        {
+                            "0": 3,
+                            "1": 2,
+                            "2": "door closed",
+                            "3": "13.70"
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "DeviceID",
+                            "field": "0",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "LocationID",
+                            "field": "1",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "EventLabel",
+                            "field": "2",
+                            "dataType": {
+                                "type": 17
+                            }
+                        },
+                        {
+                            "title": "TotalEnergyConsumption",
+                            "field": "3",
+                            "dataType": {
+                                "type": 10
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 2 records retrieved in 0s"
+                    },
+                    "totalRowCount": 2,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "SELECT\n    ed.DeviceID,\n    ed.LocationID,\n    dd.EventLabel,\n    SUM(CASE WHEN dd.Timestamp >= NOW() - INTERVAL 24 HOUR THEN CAST(dd.Value AS DECIMAL(10, 2)) ELSE 0 END) AS TotalEnergyConsumption\nFROM\n    EnrolledDevice ed\n    JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\nWHERE\n    ed.LocationID IN (SELECT LocationID FROM ServiceLocation WHERE CustomerID = 2) -- Replace 123 with the actual customer ID\nGROUP BY\n    ed.DeviceID, ed.LocationID, dd.EventLabel"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 193,
+                "end": 205,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "65109d85-ba7d-46b6-bece-493c6103dd51",
+                            "content": "OK, 0 records retrieved in 5.132ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 463
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 463,
+                            "length": 1
+                        },
+                        "contentStart": 462,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 206,
+                "end": 220,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "2b9f7b16-43b2-494c-ba25-011e577e3018",
+                            "content": "OK, 0 records retrieved in 0.969ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 465
+                        },
+                        "contentStart": 180,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 465,
+                            "length": 1
+                        },
+                        "contentStart": 464,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 221,
+                "end": 224,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "531e5220-987f-4fd0-a07b-867a9be09cba",
+                            "content": "OK, 2 rows affected in 3.659ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 236
+                        },
+                        "contentStart": 39,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 225,
+                "end": 239,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "7a01c721-3929-44b1-9078-04e3b47b068f"
+                    ]
+                },
+                "currentHeight": 36,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 465
+                        },
+                        "contentStart": 180,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 465,
+                            "length": 1
+                        },
+                        "contentStart": 464,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "30e0efe1-426e-4e3f-ce8f-cd96cd21f845",
+                    "resultId": "7a01c721-3929-44b1-9078-04e3b47b068f",
+                    "rows": [
+                        {
+                            "0": "AC system",
+                            "1": "70.800000"
+                        },
+                        {
+                            "0": "Light",
+                            "1": "69.500000"
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "Type",
+                            "field": "0",
+                            "dataType": {
+                                "type": 17
+                            }
+                        },
+                        {
+                            "title": "AverageMonthlyEnergyConsumption",
+                            "field": "1",
+                            "dataType": {
+                                "type": 10
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 2 records retrieved in 8.093ms"
+                    },
+                    "totalRowCount": 2,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "-- Calculate the average monthly energy consumption per device type, for the month of August 2022, \n-- considering only devices that have been on at least once during that month.\n\nSELECT\n    dm.Type,\n    AVG(dd.Value) AS AverageMonthlyEnergyConsumption\nFROM\n    DeviceModel dm\n    JOIN EnrolledDevice ed ON dm.ModelID = ed.ModelID\n    JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\nWHERE\n    dd.Timestamp BETWEEN '2022-08-01' AND '2022-08-31'\nGROUP BY\n    dm.Type"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 240,
+                "end": 243,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "cc04ca56-b205-4439-ac8a-eec6b3dba3b4",
+                            "content": "OK, 2 rows affected in 3.041ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 236
+                        },
+                        "contentStart": 39,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 244,
+                "end": 244,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "dd32a350-2e36-4adb-f9c9-6f88e35f0273"
+                    ]
+                },
+                "currentHeight": 36,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 25
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "30e0efe1-426e-4e3f-ce8f-cd96cd21f845",
+                    "resultId": "dd32a350-2e36-4adb-f9c9-6f88e35f0273",
+                    "rows": [
+                        {
+                            "0": 1,
+                            "1": 1,
+                            "2": "2023-11-25 12:00:00",
+                            "3": "switched on",
+                            "4": "78.00"
+                        },
+                        {
+                            "0": 2,
+                            "1": 2,
+                            "2": "2023-11-15 18:30:00",
+                            "3": "brightness changed",
+                            "4": "75.00"
+                        },
+                        {
+                            "0": 3,
+                            "1": 3,
+                            "2": "2023-02-01 08:45:00",
+                            "3": "door opened",
+                            "4": "0.00"
+                        },
+                        {
+                            "0": 4,
+                            "1": 1,
+                            "2": "2023-11-26 15:00:00",
+                            "3": "switched off",
+                            "4": "86.00"
+                        },
+                        {
+                            "0": 5,
+                            "1": 3,
+                            "2": "2023-11-26 12:00:00",
+                            "3": "door closed",
+                            "4": "13.70"
+                        },
+                        {
+                            "0": 6,
+                            "1": 1,
+                            "2": "2023-08-25 12:00:00",
+                            "3": "switched on",
+                            "4": "70.80"
+                        },
+                        {
+                            "0": 7,
+                            "1": 2,
+                            "2": "2023-08-05 19:30:00",
+                            "3": "brightness changed",
+                            "4": "69.50"
+                        },
+                        {
+                            "0": 8,
+                            "1": 1,
+                            "2": "2022-08-25 12:00:00",
+                            "3": "switched on",
+                            "4": "70.80"
+                        },
+                        {
+                            "0": 9,
+                            "1": 2,
+                            "2": "2022-08-05 19:30:00",
+                            "3": "brightness changed",
+                            "4": "69.50"
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "DataID",
+                            "field": "0",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "DeviceID",
+                            "field": "1",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "Timestamp",
+                            "field": "2",
+                            "dataType": {
+                                "type": 26
+                            }
+                        },
+                        {
+                            "title": "EventLabel",
+                            "field": "3",
+                            "dataType": {
+                                "type": 17
+                            }
+                        },
+                        {
+                            "title": "Value",
+                            "field": "4",
+                            "dataType": {
+                                "type": 10
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 9 records retrieved in 0s"
+                    },
+                    "totalRowCount": 9,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "select * from devicedata"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 245,
+                "end": 245,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "19d548d7-67de-4c55-dfbf-aec44e5db481"
+                    ]
+                },
+                "currentHeight": 36,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 26
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "30e0efe1-426e-4e3f-ce8f-cd96cd21f845",
+                    "resultId": "19d548d7-67de-4c55-dfbf-aec44e5db481",
+                    "rows": [
+                        {
+                            "0": 1,
+                            "1": "AC system",
+                            "2": "AC123"
+                        },
+                        {
+                            "0": 2,
+                            "1": "Light",
+                            "2": "Light456"
+                        },
+                        {
+                            "0": 3,
+                            "1": "Refrigerator",
+                            "2": "Fridge789"
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "ModelID",
+                            "field": "0",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "Type",
+                            "field": "1",
+                            "dataType": {
+                                "type": 17
+                            }
+                        },
+                        {
+                            "title": "ModelNumber",
+                            "field": "2",
+                            "dataType": {
+                                "type": 17
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 3 records retrieved in 0s"
+                    },
+                    "totalRowCount": 3,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "select * from devicemodel"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 246,
+                "end": 263,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "00125ece-8c42-40cd-ce51-0ba464d2dd28"
+                    ]
+                },
+                "currentHeight": 36,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 689
+                        },
+                        "contentStart": 183,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 689,
+                            "length": 1
+                        },
+                        "contentStart": 688,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "30e0efe1-426e-4e3f-ce8f-cd96cd21f845",
+                    "resultId": "00125ece-8c42-40cd-ce51-0ba464d2dd28",
+                    "rows": [
+                        {
+                            "0": "08:45:00",
+                            "1": "2023-02-01 08:45:00",
+                            "2": 2,
+                            "3": 3,
+                            "4": "Fridge789"
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "TIME(dd.Timestamp)",
+                            "field": "0",
+                            "dataType": {
+                                "type": 29
+                            }
+                        },
+                        {
+                            "title": "Timestamp",
+                            "field": "1",
+                            "dataType": {
+                                "type": 26
+                            }
+                        },
+                        {
+                            "title": "LocationID",
+                            "field": "2",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "DeviceID",
+                            "field": "3",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "RefrigeratorModel",
+                            "field": "4",
+                            "dataType": {
+                                "type": 17
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 1 record retrieved in 8.999ms"
+                    },
+                    "totalRowCount": 1,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "SELECT\n    TIME(dd.Timestamp),\n    dd.Timestamp,\n    sl.LocationID,\n    ed.DeviceID,\n    dm.ModelNumber AS RefrigeratorModel\nFROM\n    DeviceData dd\n    JOIN EnrolledDevice ed ON dd.DeviceID = ed.DeviceID\n    JOIN ServiceLocation sl ON ed.LocationID = sl.LocationID\n    JOIN DeviceModel dm ON ed.ModelID = dm.ModelID\nWHERE\n    dd.EventLabel = 'door opened'\n    AND TIMESTAMPDIFF(MINUTE, dd.Timestamp, (SELECT MIN(Timestamp) FROM DeviceData WHERE DeviceID = ed.DeviceID AND EventLabel = 'door closed')) > 30"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 264,
+                "end": 278,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "b6827db1-7f7f-4229-abf8-bb4fc7287b6d",
+                            "content": "OK, 0 records retrieved in 3.001ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 565
+                        },
+                        "contentStart": 154,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 565,
+                            "length": 0
+                        },
+                        "contentStart": 564,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 279,
+                "end": 279,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "372ffbf9-a6fe-4f5d-d93e-1fd670f362a1"
+                    ]
+                },
+                "currentHeight": 36,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 26
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "30e0efe1-426e-4e3f-ce8f-cd96cd21f845",
+                    "resultId": "372ffbf9-a6fe-4f5d-d93e-1fd670f362a1",
+                    "rows": [
+                        {
+                            "0": 1,
+                            "1": "10001",
+                            "2": "0.12",
+                            "3": "2023-01-01",
+                            "4": "2023-02-01"
+                        },
+                        {
+                            "0": 2,
+                            "1": "10001",
+                            "2": "0.15",
+                            "3": "2023-02-02",
+                            "4": null
+                        },
+                        {
+                            "0": 3,
+                            "1": "20001",
+                            "2": "0.10",
+                            "3": "2023-01-01",
+                            "4": null
+                        },
+                        {
+                            "0": 4,
+                            "1": "10001",
+                            "2": "0.13",
+                            "3": "2023-11-25",
+                            "4": "2023-11-27"
+                        },
+                        {
+                            "0": 5,
+                            "1": "10001",
+                            "2": "0.13",
+                            "3": "2023-11-25",
+                            "4": "2023-11-27"
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "PriceID",
+                            "field": "0",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "ZipCode",
+                            "field": "1",
+                            "dataType": {
+                                "type": 17
+                            }
+                        },
+                        {
+                            "title": "HourlyRate",
+                            "field": "2",
+                            "dataType": {
+                                "type": 10
+                            }
+                        },
+                        {
+                            "title": "EffectiveDate",
+                            "field": "3",
+                            "dataType": {
+                                "type": 28
+                            }
+                        },
+                        {
+                            "title": "EndDate",
+                            "field": "4",
+                            "dataType": {
+                                "type": 28
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 5 records retrieved in 4.03ms"
+                    },
+                    "totalRowCount": 5,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "select * from energyprice"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 280,
+                "end": 280,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "e01b15cd-6929-4e8f-fc62-9259384ad820"
+                    ]
+                },
+                "currentHeight": 36,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 30
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "30e0efe1-426e-4e3f-ce8f-cd96cd21f845",
+                    "resultId": "e01b15cd-6929-4e8f-fc62-9259384ad820",
+                    "rows": [
+                        {
+                            "0": 1,
+                            "1": 1,
+                            "2": "123 Main St, CityA",
+                            "3": "Apt 101",
+                            "4": "2022-01-15",
+                            "5": 1200,
+                            "6": 2,
+                            "7": 2
+                        },
+                        {
+                            "0": 2,
+                            "1": 2,
+                            "2": "456 Oak St, CityB",
+                            "3": "Apt 202",
+                            "4": "2023-02-01",
+                            "5": 1000,
+                            "6": 1,
+                            "7": 1
+                        },
+                        {
+                            "0": 3,
+                            "1": 3,
+                            "2": "789 Elm St, CityC",
+                            "3": "House",
+                            "4": "2022-05-10",
+                            "5": 2000,
+                            "6": 3,
+                            "7": 4
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "LocationID",
+                            "field": "0",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "CustomerID",
+                            "field": "1",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "Address",
+                            "field": "2",
+                            "dataType": {
+                                "type": 17
+                            }
+                        },
+                        {
+                            "title": "UnitNumber",
+                            "field": "3",
+                            "dataType": {
+                                "type": 17
+                            }
+                        },
+                        {
+                            "title": "MoveInDate",
+                            "field": "4",
+                            "dataType": {
+                                "type": 28
+                            }
+                        },
+                        {
+                            "title": "SquareFootage",
+                            "field": "5",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "Bedrooms",
+                            "field": "6",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "Occupants",
+                            "field": "7",
+                            "dataType": {
+                                "type": 4
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 3 records retrieved in 0s"
+                    },
+                    "totalRowCount": 3,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "select * from servicelocation"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 281,
+                "end": 281,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "58689e99-879c-4263-f1f0-97504820c41b"
+                    ]
+                },
+                "currentHeight": 36,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 36
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "30e0efe1-426e-4e3f-ce8f-cd96cd21f845",
+                    "resultId": "58689e99-879c-4263-f1f0-97504820c41b",
+                    "rows": [
+                        {
+                            "0": "123 Main St, CityA"
+                        },
+                        {
+                            "0": "456 Oak St, CityB"
+                        },
+                        {
+                            "0": "789 Elm St, CityC"
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "address",
+                            "field": "0",
+                            "dataType": {
+                                "type": 17
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 3 records retrieved in 2.015ms"
+                    },
+                    "totalRowCount": 3,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "select address from servicelocation"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 282,
+                "end": 284,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "391902ca-d354-4ba4-cc01-a4cce72922e6",
+                            "content": "OK, 0 records retrieved in 13.311ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 106
+                        },
+                        "contentStart": 47,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 285,
+                "end": 287,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "f0168981-5c4f-4dcc-e880-5d89b7b51bd5",
+                            "content": "OK, 1 row affected in 2.471ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 66
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 288,
+                "end": 290,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "c176659c-9f58-403c-94ae-8321431f394b",
+                            "content": "OK, 1 row affected in 3.093ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 66
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 291,
+                "end": 304,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "65bd8f9c-212c-45f3-c44c-c436bc239a76"
+                    ]
+                },
+                "currentHeight": 36,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 556
+                        },
+                        "contentStart": 145,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 556,
+                            "length": 1
+                        },
+                        "contentStart": 555,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "30e0efe1-426e-4e3f-ce8f-cd96cd21f845",
+                    "resultId": "65bd8f9c-212c-45f3-c44c-c436bc239a76",
+                    "rows": [
+                        {
+                            "0": 2,
+                            "1": "2023-11-26 12:00:00",
+                            "2": "0.46808334"
+                        },
+                        {
+                            "0": 1,
+                            "1": "2023-11-15 18:30:00",
+                            "2": "0.93750000"
+                        },
+                        {
+                            "0": 1,
+                            "1": "2023-08-05 19:30:00",
+                            "2": "0.86875000"
+                        },
+                        {
+                            "0": 1,
+                            "1": "2023-11-25 12:00:00",
+                            "2": "2.66500000"
+                        },
+                        {
+                            "0": 1,
+                            "1": "2023-11-26 15:00:00",
+                            "2": "2.93833334"
+                        },
+                        {
+                            "0": 1,
+                            "1": "2023-08-25 12:00:00",
+                            "2": "0.88500000"
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "LocationID",
+                            "field": "0",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "Timestamp",
+                            "field": "1",
+                            "dataType": {
+                                "type": 26
+                            }
+                        },
+                        {
+                            "title": "TotalEnergyCost",
+                            "field": "2",
+                            "dataType": {
+                                "type": 10
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 6 records retrieved in 1.853ms"
+                    },
+                    "totalRowCount": 6,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "-- Calculate the total energy cost for each service location during August 2022, considering the hourly changing energy prices based on zip code\nSELECT\n    sl.LocationID,\n    dd.Timestamp,\n    SUM((dd.Value * ep.HourlyRate) / 12) AS TotalEnergyCost\nFROM\n    ServiceLocation sl\n    JOIN EnrolledDevice ed ON sl.LocationID = ed.LocationID\n    JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\n    JOIN EnergyPrice ep ON sl.ZipCode = ep.ZipCode AND dd.Timestamp BETWEEN ep.EffectiveDate AND COALESCE(ep.EndDate, NOW())\n\nGROUP BY\n    sl.LocationID, dd.Timestamp"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 305,
+                "end": 305,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "b704f606-6921-4c93-8217-7e1e4efa6694"
+                    ]
+                },
+                "currentHeight": 36,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 25
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "30e0efe1-426e-4e3f-ce8f-cd96cd21f845",
+                    "resultId": "b704f606-6921-4c93-8217-7e1e4efa6694",
+                    "rows": [
+                        {
+                            "0": 1,
+                            "1": 1,
+                            "2": "2023-11-25 12:00:00",
+                            "3": "switched on",
+                            "4": "78.00"
+                        },
+                        {
+                            "0": 2,
+                            "1": 2,
+                            "2": "2023-11-15 18:30:00",
+                            "3": "brightness changed",
+                            "4": "75.00"
+                        },
+                        {
+                            "0": 3,
+                            "1": 3,
+                            "2": "2023-02-01 08:45:00",
+                            "3": "door opened",
+                            "4": "0.00"
+                        },
+                        {
+                            "0": 4,
+                            "1": 1,
+                            "2": "2023-11-26 15:00:00",
+                            "3": "switched off",
+                            "4": "86.00"
+                        },
+                        {
+                            "0": 5,
+                            "1": 3,
+                            "2": "2023-11-26 12:00:00",
+                            "3": "door closed",
+                            "4": "13.70"
+                        },
+                        {
+                            "0": 6,
+                            "1": 1,
+                            "2": "2023-08-25 12:00:00",
+                            "3": "switched on",
+                            "4": "70.80"
+                        },
+                        {
+                            "0": 7,
+                            "1": 2,
+                            "2": "2023-08-05 19:30:00",
+                            "3": "brightness changed",
+                            "4": "69.50"
+                        },
+                        {
+                            "0": 8,
+                            "1": 1,
+                            "2": "2022-08-25 12:00:00",
+                            "3": "switched on",
+                            "4": "70.80"
+                        },
+                        {
+                            "0": 9,
+                            "1": 2,
+                            "2": "2022-08-05 19:30:00",
+                            "3": "brightness changed",
+                            "4": "69.50"
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "DataID",
+                            "field": "0",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "DeviceID",
+                            "field": "1",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "Timestamp",
+                            "field": "2",
+                            "dataType": {
+                                "type": 26
+                            }
+                        },
+                        {
+                            "title": "EventLabel",
+                            "field": "3",
+                            "dataType": {
+                                "type": 17
+                            }
+                        },
+                        {
+                            "title": "Value",
+                            "field": "4",
+                            "dataType": {
+                                "type": 10
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 9 records retrieved in 1.362ms"
+                    },
+                    "totalRowCount": 9,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "select * from devicedata"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 306,
+                "end": 306,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "0b1d8066-1a65-46db-f0ef-324ee734932d"
+                    ]
+                },
+                "currentHeight": 36,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 29
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "30e0efe1-426e-4e3f-ce8f-cd96cd21f845",
+                    "resultId": "0b1d8066-1a65-46db-f0ef-324ee734932d",
+                    "rows": [
+                        {
+                            "0": 1,
+                            "1": 1,
+                            "2": 1
+                        },
+                        {
+                            "0": 2,
+                            "1": 1,
+                            "2": 2
+                        },
+                        {
+                            "0": 3,
+                            "1": 2,
+                            "2": 3
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "DeviceID",
+                            "field": "0",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "LocationID",
+                            "field": "1",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "ModelID",
+                            "field": "2",
+                            "dataType": {
+                                "type": 4
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 3 records retrieved in 1.005ms"
+                    },
+                    "totalRowCount": 3,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "SELECT * from enrolleddevice"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 307,
+                "end": 311,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "a783a14f-e68f-4b7d-9ec9-285a233507ca",
+                            "content": "OK, 3 rows affected in 3.619ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 290
+                        },
+                        "contentStart": 39,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 312,
+                "end": 325,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "c66e21c3-4a5d-4df1-9311-73aa099ad35c"
+                    ]
+                },
+                "currentHeight": 36,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 556
+                        },
+                        "contentStart": 145,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 556,
+                            "length": 1
+                        },
+                        "contentStart": 555,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "30e0efe1-426e-4e3f-ce8f-cd96cd21f845",
+                    "resultId": "c66e21c3-4a5d-4df1-9311-73aa099ad35c",
+                    "rows": [
+                        {
+                            "0": 2,
+                            "1": "2023-11-26 12:00:00",
+                            "2": "0.46808334"
+                        },
+                        {
+                            "0": 1,
+                            "1": "2023-11-15 18:30:00",
+                            "2": "0.93750000"
+                        },
+                        {
+                            "0": 1,
+                            "1": "2023-08-05 19:30:00",
+                            "2": "0.86875000"
+                        },
+                        {
+                            "0": 1,
+                            "1": "2023-11-25 12:00:00",
+                            "2": "2.66500000"
+                        },
+                        {
+                            "0": 1,
+                            "1": "2023-11-26 15:00:00",
+                            "2": "2.93833334"
+                        },
+                        {
+                            "0": 1,
+                            "1": "2023-08-25 12:00:00",
+                            "2": "0.88500000"
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "LocationID",
+                            "field": "0",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "Timestamp",
+                            "field": "1",
+                            "dataType": {
+                                "type": 26
+                            }
+                        },
+                        {
+                            "title": "TotalEnergyCost",
+                            "field": "2",
+                            "dataType": {
+                                "type": 10
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 6 records retrieved in 0s"
+                    },
+                    "totalRowCount": 6,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "-- Calculate the total energy cost for each service location during August 2022, considering the hourly changing energy prices based on zip code\nSELECT\n    sl.LocationID,\n    dd.Timestamp,\n    SUM((dd.Value * ep.HourlyRate) / 12) AS TotalEnergyCost\nFROM\n    ServiceLocation sl\n    JOIN EnrolledDevice ed ON sl.LocationID = ed.LocationID\n    JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\n    JOIN EnergyPrice ep ON sl.ZipCode = ep.ZipCode AND dd.Timestamp BETWEEN ep.EffectiveDate AND COALESCE(ep.EndDate, NOW())\n\nGROUP BY\n    sl.LocationID, dd.Timestamp"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 326,
+                "end": 326,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "93ec52d5-3afe-45fa-e19f-4af43e55bc7c"
+                    ]
+                },
+                "currentHeight": 36,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 26
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "30e0efe1-426e-4e3f-ce8f-cd96cd21f845",
+                    "resultId": "93ec52d5-3afe-45fa-e19f-4af43e55bc7c",
+                    "rows": [
+                        {
+                            "0": 1,
+                            "1": "10001",
+                            "2": "0.12",
+                            "3": "2023-01-01",
+                            "4": "2023-02-01"
+                        },
+                        {
+                            "0": 2,
+                            "1": "10001",
+                            "2": "0.15",
+                            "3": "2023-02-02",
+                            "4": null
+                        },
+                        {
+                            "0": 3,
+                            "1": "20001",
+                            "2": "0.10",
+                            "3": "2023-01-01",
+                            "4": null
+                        },
+                        {
+                            "0": 4,
+                            "1": "10001",
+                            "2": "0.13",
+                            "3": "2023-11-25",
+                            "4": "2023-11-27"
+                        },
+                        {
+                            "0": 5,
+                            "1": "10001",
+                            "2": "0.13",
+                            "3": "2023-11-25",
+                            "4": "2023-11-27"
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "PriceID",
+                            "field": "0",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "ZipCode",
+                            "field": "1",
+                            "dataType": {
+                                "type": 17
+                            }
+                        },
+                        {
+                            "title": "HourlyRate",
+                            "field": "2",
+                            "dataType": {
+                                "type": 10
+                            }
+                        },
+                        {
+                            "title": "EffectiveDate",
+                            "field": "3",
+                            "dataType": {
+                                "type": 28
+                            }
+                        },
+                        {
+                            "title": "EndDate",
+                            "field": "4",
+                            "dataType": {
+                                "type": 28
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 5 records retrieved in 0.97ms"
+                    },
+                    "totalRowCount": 5,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "select * from energyprice"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 327,
+                "end": 330,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "0e5c4af2-0b44-49b5-cc92-85f2fe21f022",
+                            "content": "OK, 2 rows affected in 7.012ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 229
+                        },
+                        "contentStart": 40,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 331,
+                "end": 331,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "30cb8844-fff4-4a7d-f410-114722c08ff0"
+                    ]
+                },
+                "currentHeight": 36,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 26
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "30e0efe1-426e-4e3f-ce8f-cd96cd21f845",
+                    "resultId": "30cb8844-fff4-4a7d-f410-114722c08ff0",
+                    "rows": [
+                        {
+                            "0": 1,
+                            "1": "10001",
+                            "2": "0.12",
+                            "3": "2023-01-01",
+                            "4": "2023-02-01"
+                        },
+                        {
+                            "0": 2,
+                            "1": "10001",
+                            "2": "0.15",
+                            "3": "2023-02-02",
+                            "4": null
+                        },
+                        {
+                            "0": 3,
+                            "1": "20001",
+                            "2": "0.10",
+                            "3": "2023-01-01",
+                            "4": null
+                        },
+                        {
+                            "0": 4,
+                            "1": "10001",
+                            "2": "0.13",
+                            "3": "2023-11-25",
+                            "4": "2023-11-27"
+                        },
+                        {
+                            "0": 5,
+                            "1": "10001",
+                            "2": "0.13",
+                            "3": "2023-11-25",
+                            "4": "2023-11-27"
+                        },
+                        {
+                            "0": 6,
+                            "1": "10001",
+                            "2": "0.12",
+                            "3": "2022-08-01",
+                            "4": "2023-02-01"
+                        },
+                        {
+                            "0": 7,
+                            "1": "10001",
+                            "2": "0.25",
+                            "3": "2022-08-02",
+                            "4": "2022-10-20"
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "PriceID",
+                            "field": "0",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "ZipCode",
+                            "field": "1",
+                            "dataType": {
+                                "type": 17
+                            }
+                        },
+                        {
+                            "title": "HourlyRate",
+                            "field": "2",
+                            "dataType": {
+                                "type": 10
+                            }
+                        },
+                        {
+                            "title": "EffectiveDate",
+                            "field": "3",
+                            "dataType": {
+                                "type": 28
+                            }
+                        },
+                        {
+                            "title": "EndDate",
+                            "field": "4",
+                            "dataType": {
+                                "type": 28
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 7 records retrieved in 0s"
+                    },
+                    "totalRowCount": 7,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "select * from energyprice"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 332,
+                "end": 347,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "5f585b85-6f66-464c-9ae7-dbcccec1731c"
+                    ]
+                },
+                "currentHeight": 36,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 620
+                        },
+                        "contentStart": 149,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 620,
+                            "length": 1
+                        },
+                        "contentStart": 619,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "30e0efe1-426e-4e3f-ce8f-cd96cd21f845",
+                    "resultId": "5f585b85-6f66-464c-9ae7-dbcccec1731c",
+                    "rows": [
+                        {
+                            "0": 1,
+                            "1": "2022-08-01 08:45:00",
+                            "2": "0.08000000"
+                        },
+                        {
+                            "0": 1,
+                            "1": "2022-08-05 18:30:00",
+                            "2": "0.23433333"
+                        },
+                        {
+                            "0": 1,
+                            "1": "2022-08-15 12:00:00",
+                            "2": "0.08325000"
+                        },
+                        {
+                            "0": 1,
+                            "1": "2022-08-05 19:30:00",
+                            "2": "2.14291667"
+                        },
+                        {
+                            "0": 1,
+                            "1": "2022-08-25 12:00:00",
+                            "2": "2.18300000"
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "LocationID",
+                            "field": "0",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "Timestamp",
+                            "field": "1",
+                            "dataType": {
+                                "type": 26
+                            }
+                        },
+                        {
+                            "title": "TotalEnergyCost",
+                            "field": "2",
+                            "dataType": {
+                                "type": 10
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 5 records retrieved in 0s"
+                    },
+                    "totalRowCount": 5,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "-- Calculate the total energy cost for each service location during August 2022, \n-- considering the hourly changing energy prices based on zip code\nSELECT\n    sl.LocationID,\n    dd.Timestamp,\n    SUM((dd.Value * ep.HourlyRate) / 12) AS TotalEnergyCost\nFROM\n    ServiceLocation sl\n    JOIN EnrolledDevice ed ON sl.LocationID = ed.LocationID\n    JOIN DeviceData dd ON ed.DeviceID = dd.DeviceID\n    JOIN EnergyPrice ep ON sl.ZipCode = ep.ZipCode AND dd.Timestamp BETWEEN ep.EffectiveDate AND COALESCE(ep.EndDate, NOW())\nWHERE\n    dd.Timestamp BETWEEN '2022-08-01' AND '2022-08-31'\nGROUP BY\n    sl.LocationID, dd.Timestamp"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 348,
+                "end": 376,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 0,
+                            "index": 0,
+                            "content": "MySQL Error (1111): ClassicSession.run_sql: Invalid use of group function",
+                            "language": "ansi"
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": ""
+                    }
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 1181
+                        },
+                        "contentStart": 238,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 1181,
+                            "length": 1
+                        },
+                        "contentStart": 1180,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 377,
+                "end": 377,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 0,
+                            "index": 0,
+                            "content": "MySQL Error (1111): ClassicSession.run_sql: Invalid use of group function",
+                            "language": "ansi"
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": ""
+                    }
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 0
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 378,
+                "end": 407,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "9c41185d-5278-414f-cb82-eaa4a36014b9",
+                            "content": "OK, 0 records retrieved in 5.057ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 1006
+                        },
+                        "contentStart": 139,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 1006,
+                            "length": 1
+                        },
+                        "contentStart": 1005,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 408,
+                "end": 408,
+                "language": "mysql",
+                "currentHeight": 180,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 0
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        }
+    ]
+}

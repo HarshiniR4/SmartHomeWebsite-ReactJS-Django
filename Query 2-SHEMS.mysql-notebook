@@ -1,0 +1,668 @@
+{
+    "type": "MySQLNotebook",
+    "version": "1.0",
+    "caption": "DB Notebook",
+    "content": "\\about\n-- Create SHEMS database\nCREATE DATABASE IF NOT EXISTS SHEMS_DB;\nUSE SHEMS_DB;\n\n-- Table: Customer\nCREATE TABLE IF NOT EXISTS Customer (\n    CustomerID INT PRIMARY KEY,\n    Name VARCHAR(255),\n    BillingAddressL1 VARCHAR(255),\n    BillingAddressL2 VARCHAR(255),\n    Zipcode VARCHAR(10),\n    Email VARCHAR(255),\n    PhoneNumber VARCHAR(20)\n);\n\n-- Table: ServiceLocation\nCREATE TABLE IF NOT EXISTS ServiceLocation (\n    LocationID INT PRIMARY KEY,\n    CustomerID INT,\n    Address VARCHAR(255),\n    UnitNumber VARCHAR(50),\n    MoveInDate DATE,\n    SquareFootage DECIMAL(10, 2),\n    Bedrooms INT,\n    Occupants INT,\n    FOREIGN KEY (CustomerID) REFERENCES Customer(CustomerID)\n);\n\n-- Table: DeviceModel\nCREATE TABLE IF NOT EXISTS DeviceModel (\n    ModelID INT PRIMARY KEY,\n    Type VARCHAR(50),\n    ModelNumber VARCHAR(50)\n);\n\n-- Table: EnrolledDevice\nCREATE TABLE IF NOT EXISTS EnrolledDevice (\n    DeviceID INT PRIMARY KEY,\n    LocationID INT,\n    ModelID INT,\n    CustomerID INT,\n    FOREIGN KEY (LocationID) REFERENCES ServiceLocation(LocationID),\n    FOREIGN KEY (ModelID) REFERENCES DeviceModel(ModelID),\n    FOREIGN KEY (CustomerID) REFERENCES Customer(CustomerID)\n);\n\n-- Table: DeviceHistory\nCREATE TABLE IF NOT EXISTS DeviceHistory (\n    DeviceID INT,\n    CustomerID INT,\n    LocationID INT,\n    Timestamp TIMESTAMP,\n    EventLabel VARCHAR(50),\n    Value DECIMAL(10, 2),\n    FOREIGN KEY (DeviceID) REFERENCES EnrolledDevice(DeviceID),\n    FOREIGN KEY (CustomerID) REFERENCES Customer(CustomerID),\n    FOREIGN KEY (LocationID) REFERENCES ServiceLocation(LocationID)\n);\n\n-- Table: EnergyPrice\nCREATE TABLE IF NOT EXISTS EnergyPrice (\n    ZipCode VARCHAR(10),\n    Timestamp TIMESTAMP,\n    HourlyRate DECIMAL(10, 2),\n    EndDate DATE,\n    PRIMARY KEY (ZipCode, Timestamp)\n);\n\n-- Insert statements for Customer table\nINSERT INTO Customer (CustomerID, Name, BillingAddressL1, BillingAddressL2, Zipcode, Email, PhoneNumber)\nVALUES\n    (1, 'John Doe', '123 Main St', 'Apt 4', '10001', 'john.doe@example.com', '123-456-7890'),\n    (2, 'Jane Smith', '456 Oak St', 'Suite 7', '10002', 'jane.smith@example.com', '987-654-3210');\n\n-- Insert statements for ServiceLocation table\nINSERT INTO ServiceLocation (LocationID, CustomerID, Address, UnitNumber, MoveInDate, SquareFootage, Bedrooms, Occupants)\nVALUES\n    (1, 1, '789 Broadway', '3B', '2022-07-15', 1200.50, 2, 3),\n    (2, 2, '101 Pine St', 'Apt 10', '2022-08-01', 900.75, 1, 1);\n\n-- Insert statements for DeviceModel table\nINSERT INTO DeviceModel (ModelID, Type, ModelNumber)\nVALUES\n    (1, 'AC System', 'AC123'),\n    (2, 'Refrigerator', 'RF456');\n\n-- Insert statements for EnrolledDevice table\nINSERT INTO EnrolledDevice (DeviceID, LocationID, ModelID, CustomerID)\nVALUES\n    (1, 1, 1, 1),\n    (2, 2, 2, 2);\n-- Insert statements for EnergyPrice table\nINSERT INTO EnergyPrice (ZipCode, Timestamp, HourlyRate, EndDate)\nVALUES\n    ('10001', '2022-07-01 00:00:00', 0.15, '2022-07-01'),\n    ('10002', '2022-07-01 00:00:00', 0.12, '2022-07-01'),\n    ('10001', '2022-08-01 00:00:00', 0.18, '2022-08-01'),\n    ('10002', '2022-08-01 00:00:00', 0.14, '2022-08-01'),\n    ('10001', '2022-09-05 00:00:00', 0.20, '2022-09-09');\n\n-- Insert statements for DeviceHistory table\nINSERT INTO DeviceHistory (DeviceID, CustomerID, LocationID, Timestamp, EventLabel, Value)\nVALUES\n    (1, 1, 1, '2022-08-05 08:30:00', 'switched on', 30.8),\n    (2, 2, 2, '2022-07-20 15:45:00', 'door opened', 79.2),\n    (1, 1, 1, '2022-08-15 12:00:00', 'switched off', 65.0),\n    (2, 2, 2, '2022-07-23 2:00:00', 'door closed', 90.2),\n    (1, 1, 1, '2022-09-20 09:00:00', 'switched on', 66.0),\n    (1,1,1, '2022-09-21 12:00:00', 'switched off', 99.0);\n\n\n-- 1. List all enrolled devices with their total energy\n-- consumption in the last 24 hours for a specific customer identified by customer ID.\n\nSELECT\n    ed.DeviceID,\n    ed.LocationID,\n    dd.EventLabel,\n    SUM(CASE WHEN TIME(dd.Timestamp) >= NOW() - INTERVAL 24 HOUR THEN dd.Value ELSE 0 END) AS TotalEnergyConsumption\nFROM\n    EnrolledDevice ed\n    JOIN devicehistory dd ON ed.DeviceID = dd.DeviceID\nWHERE\n    ed.LocationID IN (SELECT LocationID FROM ServiceLocation WHERE CustomerID = 1)\nGROUP BY\n    ed.DeviceID, ed.LocationID, dd.EventLabel;\n\n-- 2. Calculate the average monthly energy consumption per device type, for the month of August 2022, \n-- considering only devices that have been on at least once during that month.\n\nSELECT\n    dm.Type,\n    AVG(dd.Value) AS AverageMonthlyEnergyConsumption\nFROM\n    DeviceModel dm\n    JOIN EnrolledDevice ed ON dm.ModelID = ed.ModelID\n    JOIN DeviceHistory dd ON ed.DeviceID = dd.DeviceID\nWHERE\n    dd.Timestamp BETWEEN '2022-08-01' AND '2022-08-31'\nGROUP BY\n    dm.Type;\n-- 3. Identify cases where a refrigerator door was left open for more than 30 minutes. \n-- Output the date and time, the service location, the device ID, and the refrigerator model.\n\nSELECT\n    TIME(dd.Timestamp),\n    dd.Timestamp,\n    sl.LocationID,\n    ed.DeviceID,\n    dm.ModelNumber AS RefrigeratorModel\nFROM\n    DeviceHistory dd\n    JOIN EnrolledDevice ed ON dd.DeviceID = ed.DeviceID\n    JOIN ServiceLocation sl ON ed.LocationID = sl.LocationID\n    JOIN DeviceModel dm ON ed.ModelID = dm.ModelID\nWHERE\n    dd.EventLabel = 'door opened'\n    AND TIMESTAMPDIFF(MINUTE, dd.Timestamp, (SELECT MIN(Timestamp) FROM DeviceHistory WHERE DeviceID = ed.DeviceID AND EventLabel = 'door closed')) > 30;\n\n-- 4. Calculate the total energy cost for each service location during August 2022, \n-- considering the hourly changing energy prices based on zip code.\n\nSELECT\n    sl.LocationID, \n    SUM((dd.Value * ep.HourlyRate) / 12) AS TotalEnergyCost\nFROM\n    ServiceLocation sl\n    JOIN EnrolledDevice ed ON sl.LocationID = ed.LocationID\n    JOIN DeviceHistory dd ON ed.DeviceID = dd.DeviceID\n    JOIN EnergyPrice ep ON DATE(dd.Timestamp) BETWEEN DATE(ep.Timestamp) AND COALESCE(ep.EndDate, NOW())\nWHERE\n    DATE(dd.Timestamp) BETWEEN '2022-08-01' AND '2022-08-31'\nGROUP BY\n    sl.LocationID;\n",
+    "options": {
+        "tabSize": 4,
+        "insertSpaces": true,
+        "indentSize": 4,
+        "defaultEOL": "CRLF",
+        "trimAutoWhitespace": true
+    },
+    "viewState": {
+        "cursorState": [
+            {
+                "inSelectionMode": false,
+                "selectionStart": {
+                    "lineNumber": 176,
+                    "column": 1
+                },
+                "position": {
+                    "lineNumber": 176,
+                    "column": 1
+                }
+            }
+        ],
+        "viewState": {
+            "scrollLeft": 0,
+            "firstPosition": {
+                "lineNumber": 154,
+                "column": 1
+            },
+            "firstPositionDeltaTop": -4
+        },
+        "contributionsState": {
+            "editor.contrib.folding": {},
+            "editor.contrib.wordHighlighter": false
+        }
+    },
+    "contexts": [
+        {
+            "state": {
+                "start": 1,
+                "end": 1,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 2,
+                            "content": "Welcome to the MySQL Shell - DB Notebook.\n\nPress Ctrl+Enter to execute the code block.\n\nExecute \\sql to switch to SQL, \\js to JavaScript and \\ts to TypeScript mode.\nExecute \\help or \\? for help;",
+                            "language": "ansi"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 6
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 2,
+                "end": 4,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "cbb756f9-e2b5-4850-dc4c-2e3ca3516524",
+                            "content": "OK, 1 row affected in 5.995ms"
+                        },
+                        {
+                            "type": 4,
+                            "index": 1,
+                            "resultId": "98dbaf41-1c80-4d5a-a0e6-66458b9e8acd",
+                            "content": "OK, 0 records retrieved in 0.923ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 64
+                        },
+                        "contentStart": 25,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 64,
+                            "length": 14
+                        },
+                        "contentStart": 65,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 5,
+                "end": 69,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "b56b1d15-c2c0-4495-fc51-828381255d24",
+                            "content": "OK, 0 records retrieved in 87.276ms"
+                        },
+                        {
+                            "type": 4,
+                            "index": 1,
+                            "resultId": "f7f64825-baa3-43b3-a6d7-4f43197f1b8e",
+                            "content": "OK, 0 records retrieved in 20.913ms"
+                        },
+                        {
+                            "type": 4,
+                            "index": 2,
+                            "resultId": "6a94ee35-e672-4374-de55-061f85a29e51",
+                            "content": "OK, 0 records retrieved in 13.18ms"
+                        },
+                        {
+                            "type": 4,
+                            "index": 3,
+                            "resultId": "4b63b34d-2ffc-4c83-9f73-43e02c240af6",
+                            "content": "OK, 0 records retrieved in 40.157ms"
+                        },
+                        {
+                            "type": 4,
+                            "index": 4,
+                            "resultId": "9c13f2b9-3cf1-42c8-dd6c-714cf53fba51",
+                            "content": "OK, 0 records retrieved in 27.459ms"
+                        },
+                        {
+                            "type": 4,
+                            "index": 5,
+                            "resultId": "95a41698-7410-4e0c-91e3-790fc4551d7e",
+                            "content": "OK, 0 records retrieved in 20.842ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 262
+                        },
+                        "contentStart": 20,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 262,
+                            "length": 334
+                        },
+                        "contentStart": 290,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 596,
+                            "length": 146
+                        },
+                        "contentStart": 620,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 742,
+                            "length": 349
+                        },
+                        "contentStart": 769,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 1091,
+                            "length": 402
+                        },
+                        "contentStart": 1117,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 1493,
+                            "length": 203
+                        },
+                        "contentStart": 1517,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 1696,
+                            "length": 1
+                        },
+                        "contentStart": 1695,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 70,
+                "end": 111,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "e4f2890c-f8fa-42d5-f35f-ee62e4d197c4",
+                            "content": "OK, 2 rows affected in 2.945ms"
+                        },
+                        {
+                            "type": 4,
+                            "index": 1,
+                            "resultId": "7a8d6b8c-95d1-4c90-ae04-f72b5b9bb1dd",
+                            "content": "OK, 2 rows affected in 3.903ms"
+                        },
+                        {
+                            "type": 4,
+                            "index": 2,
+                            "resultId": "5597b936-29dd-409c-cc43-11fbc675a9cc",
+                            "content": "OK, 2 rows affected in 4.613ms"
+                        },
+                        {
+                            "type": 4,
+                            "index": 3,
+                            "resultId": "e599ec0a-2126-4682-e241-823e9d101b75",
+                            "content": "OK, 2 rows affected in 3.061ms"
+                        },
+                        {
+                            "type": 4,
+                            "index": 4,
+                            "resultId": "f5109c44-d59a-4a5c-c6f4-2cf728710b66",
+                            "content": "OK, 5 rows affected in 4.678ms"
+                        },
+                        {
+                            "type": 4,
+                            "index": 5,
+                            "resultId": "7bfafbd3-709f-436c-95dc-adaae52497b0",
+                            "content": "OK, 6 rows affected in 5.528ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 344
+                        },
+                        "contentStart": 40,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 344,
+                            "length": 305
+                        },
+                        "contentStart": 393,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 649,
+                            "length": 169
+                        },
+                        "contentStart": 694,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 818,
+                            "length": 161
+                        },
+                        "contentStart": 866,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 979,
+                            "length": 406
+                        },
+                        "contentStart": 1023,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 1385,
+                            "length": 497
+                        },
+                        "contentStart": 1432,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 1882,
+                            "length": 1
+                        },
+                        "contentStart": 1881,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 112,
+                "end": 128,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "e30f3d39-0016-4ca5-d789-bfe2ba77795f"
+                    ]
+                },
+                "currentHeight": 137.39373779296875,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 550
+                        },
+                        "contentStart": 145,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 550,
+                            "length": 1
+                        },
+                        "contentStart": 549,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "a79dc42d-e194-4bc2-b833-8aa75bec5528",
+                    "resultId": "e30f3d39-0016-4ca5-d789-bfe2ba77795f",
+                    "rows": [
+                        {
+                            "0": 1,
+                            "1": 1,
+                            "2": "switched on",
+                            "3": "96.80"
+                        },
+                        {
+                            "0": 1,
+                            "1": 1,
+                            "2": "switched off",
+                            "3": "164.00"
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "DeviceID",
+                            "field": "0",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "LocationID",
+                            "field": "1",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "EventLabel",
+                            "field": "2",
+                            "dataType": {
+                                "type": 17
+                            }
+                        },
+                        {
+                            "title": "TotalEnergyConsumption",
+                            "field": "3",
+                            "dataType": {
+                                "type": 10
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 2 records retrieved in 0.913ms"
+                    },
+                    "totalRowCount": 2,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "\n-- 1. List all enrolled devices with their total energy\n-- consumption in the last 24 hours for a specific customer identified by customer ID.\n\nSELECT\n    ed.DeviceID,\n    ed.LocationID,\n    dd.EventLabel,\n    SUM(CASE WHEN TIME(dd.Timestamp) >= NOW() - INTERVAL 24 HOUR THEN dd.Value ELSE 0 END) AS TotalEnergyConsumption\nFROM\n    EnrolledDevice ed\n    JOIN devicehistory dd ON ed.DeviceID = dd.DeviceID\nWHERE\n    ed.LocationID IN (SELECT LocationID FROM ServiceLocation WHERE CustomerID = 1)\nGROUP BY\n    ed.DeviceID, ed.LocationID, dd.EventLabel"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 129,
+                "end": 142,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "4321e8fb-11ad-4ece-d0c8-edc1fae6190c"
+                    ]
+                },
+                "currentHeight": 131.38750457763672,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 471
+                        },
+                        "contentStart": 183,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 471,
+                            "length": 0
+                        },
+                        "contentStart": 470,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "a79dc42d-e194-4bc2-b833-8aa75bec5528",
+                    "resultId": "4321e8fb-11ad-4ece-d0c8-edc1fae6190c",
+                    "rows": [
+                        {
+                            "0": "AC System",
+                            "1": "47.900000"
+                        },
+                        {
+                            "0": "Refrigerator",
+                            "1": "84.700000"
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "Type",
+                            "field": "0",
+                            "dataType": {
+                                "type": 17
+                            }
+                        },
+                        {
+                            "title": "AverageMonthlyEnergyConsumption",
+                            "field": "1",
+                            "dataType": {
+                                "type": 10
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 2 records retrieved in 0.981ms"
+                    },
+                    "totalRowCount": 2,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "-- 2. Calculate the average monthly energy consumption per device type, for the month of August 2022, \n-- considering only devices that have been on at least once during that month.\n\nSELECT\n    dm.Type,\n    AVG(dd.Value) AS AverageMonthlyEnergyConsumption\nFROM\n    DeviceModel dm\n    JOIN EnrolledDevice ed ON dm.ModelID = ed.ModelID\n    JOIN DeviceHistory dd ON ed.DeviceID = dd.DeviceID\nWHERE\n    dd.Timestamp BETWEEN '2022-08-01' AND '2022-08-31'\nGROUP BY\n    dm.Type"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 143,
+                "end": 160,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "75411b62-1244-454c-9069-9cab31c79469"
+                    ]
+                },
+                "currentHeight": 96.80000305175781,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 695
+                        },
+                        "contentStart": 183,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 695,
+                            "length": 1
+                        },
+                        "contentStart": 694,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "a79dc42d-e194-4bc2-b833-8aa75bec5528",
+                    "resultId": "75411b62-1244-454c-9069-9cab31c79469",
+                    "rows": [
+                        {
+                            "0": "15:45:00",
+                            "1": "2022-07-20 15:45:00",
+                            "2": 2,
+                            "3": 2,
+                            "4": "RF456"
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "TIME(dd.Timestamp)",
+                            "field": "0",
+                            "dataType": {
+                                "type": 29
+                            }
+                        },
+                        {
+                            "title": "Timestamp",
+                            "field": "1",
+                            "dataType": {
+                                "type": 26
+                            }
+                        },
+                        {
+                            "title": "LocationID",
+                            "field": "2",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "DeviceID",
+                            "field": "3",
+                            "dataType": {
+                                "type": 4
+                            }
+                        },
+                        {
+                            "title": "RefrigeratorModel",
+                            "field": "4",
+                            "dataType": {
+                                "type": 17
+                            }
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 1 record retrieved in 0.977ms"
+                    },
+                    "totalRowCount": 1,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 0,
+                    "sql": "-- 3. Identify cases where a refrigerator door was left open for more than 30 minutes. \n-- Output the date and time, the service location, the device ID, and the refrigerator model.\n\nSELECT\n    TIME(dd.Timestamp),\n    dd.Timestamp,\n    sl.LocationID,\n    ed.DeviceID,\n    dm.ModelNumber AS RefrigeratorModel\nFROM\n    DeviceHistory dd\n    JOIN EnrolledDevice ed ON dd.DeviceID = ed.DeviceID\n    JOIN ServiceLocation sl ON ed.LocationID = sl.LocationID\n    JOIN DeviceModel dm ON ed.ModelID = dm.ModelID\nWHERE\n    dd.EventLabel = 'door opened'\n    AND TIMESTAMPDIFF(MINUTE, dd.Timestamp, (SELECT MIN(Timestamp) FROM DeviceHistory WHERE DeviceID = ed.DeviceID AND EventLabel = 'door closed')) > 30"
+                }
+            ]
+        },
+        {
+            "state": {
+                "start": 161,
+                "end": 175,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 4,
+                            "index": 0,
+                            "resultId": "11ff6bbd-cca4-48e1-dda4-35cd311f8f85",
+                            "content": "OK, 0 records retrieved in 2.009ms"
+                        }
+                    ]
+                },
+                "currentHeight": 28,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 583
+                        },
+                        "contentStart": 154,
+                        "state": 0
+                    },
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 583,
+                            "length": 0
+                        },
+                        "contentStart": 582,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": []
+        },
+        {
+            "state": {
+                "start": 176,
+                "end": 176,
+                "language": "mysql",
+                "currentHeight": 180,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 0
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": []
+        }
+    ]
+}

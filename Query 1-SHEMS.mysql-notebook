@@ -1,0 +1,76 @@
+{
+    "type": "MySQLNotebook",
+    "version": "1.0",
+    "caption": "Result #1",
+    "content": "u\r\n-- 1. List all enrolled devices with their total energy\r\n-- consumption in the last 24 hours for a specific customer identified by customer ID.\r\n\r\nSELECT\r\n    ed.DeviceID,\r\n    ed.LocationID,\r\n    dd.EventLabel,\r\n    SUM(CASE WHEN dd.Timestamp >= NOW() - INTERVAL 24 HOUR THEN dd.Value ELSE 0 END) AS TotalEnergyConsumption\r\nFROM\r\n    EnrolledDevice ed\r\n    JOIN devicehistory dd ON ed.DeviceID = dd.DeviceID\r\nWHERE\r\n    ed.LocationID IN (SELECT LocationID FROM ServiceLocation WHERE CustomerID = 1) -- Replace 123 with the actual customer ID\r\nGROUP BY\r\n    ed.DeviceID, ed.LocationID, dd.EventLabel",
+    "options": {
+        "tabSize": 4,
+        "indentSize": 4,
+        "insertSpaces": true,
+        "defaultEOL": "LF",
+        "trimAutoWhitespace": true
+    },
+    "viewState": {
+        "cursorState": [
+            {
+                "inSelectionMode": false,
+                "selectionStart": {
+                    "lineNumber": 1,
+                    "column": 2
+                },
+                "position": {
+                    "lineNumber": 1,
+                    "column": 2
+                }
+            }
+        ],
+        "viewState": {
+            "scrollLeft": 0,
+            "firstPosition": {
+                "lineNumber": 1,
+                "column": 1
+            },
+            "firstPositionDeltaTop": 0
+        },
+        "contributionsState": {
+            "editor.contrib.folding": {},
+            "editor.contrib.wordHighlighter": false
+        }
+    },
+    "contexts": [
+        {
+            "state": {
+                "start": 1,
+                "end": 16,
+                "language": "mysql",
+                "result": {
+                    "type": "text",
+                    "text": [
+                        {
+                            "type": 0,
+                            "index": 0,
+                            "content": "MySQL Error (1046): ClassicSession.run_sql: No database selected",
+                            "language": "ansi"
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": ""
+                    }
+                },
+                "currentHeight": 352,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 602
+                        },
+                        "contentStart": 0,
+                        "state": 3
+                    }
+                ]
+            },
+            "data": []
+        }
+    ]
+}

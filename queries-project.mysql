@@ -1,0 +1,111 @@
+-- Create SHEMS database
+CREATE DATABASE IF NOT EXISTS SHEMS_DB;
+USE SHEMS_DB;
+
+-- Table: Customer
+CREATE TABLE IF NOT EXISTS Customer (
+    CustomerID INT PRIMARY KEY,
+    Name VARCHAR(255),
+    BillingAddressL1 VARCHAR(255),
+    BillingAddressL2 VARCHAR(255),
+    Zipcode VARCHAR(10),
+    Email VARCHAR(255),
+    PhoneNumber VARCHAR(20)
+);
+
+-- Table: ServiceLocation
+CREATE TABLE IF NOT EXISTS ServiceLocation (
+    LocationID INT PRIMARY KEY,
+    CustomerID INT,
+    Address VARCHAR(255),
+    UnitNumber VARCHAR(50),
+    MoveInDate DATE,
+    SquareFootage DECIMAL(10, 2),
+    Bedrooms INT,
+    Occupants INT,
+    FOREIGN KEY (CustomerID) REFERENCES Customer(CustomerID)
+);
+
+-- Table: DeviceModel
+CREATE TABLE IF NOT EXISTS DeviceModel (
+    ModelID INT PRIMARY KEY,
+    Type VARCHAR(50),
+    ModelNumber VARCHAR(50)
+);
+
+-- Table: EnrolledDevice
+CREATE TABLE IF NOT EXISTS EnrolledDevice (
+    DeviceID INT PRIMARY KEY,
+    LocationID INT,
+    ModelID INT,
+    CustomerID INT,
+    FOREIGN KEY (LocationID) REFERENCES ServiceLocation(LocationID),
+    FOREIGN KEY (ModelID) REFERENCES DeviceModel(ModelID),
+    FOREIGN KEY (CustomerID) REFERENCES Customer(CustomerID)
+);
+
+-- Table: DeviceHistory
+CREATE TABLE IF NOT EXISTS DeviceHistory (
+    DeviceID INT,
+    CustomerID INT,
+    LocationID INT,
+    Timestamp TIMESTAMP,
+    EventLabel VARCHAR(50),
+    Value DECIMAL(10, 2),
+    FOREIGN KEY (DeviceID) REFERENCES EnrolledDevice(DeviceID),
+    FOREIGN KEY (CustomerID) REFERENCES Customer(CustomerID),
+    FOREIGN KEY (LocationID) REFERENCES ServiceLocation(LocationID)
+);
+
+-- Table: EnergyPrice
+CREATE TABLE IF NOT EXISTS EnergyPrice (
+    ZipCode VARCHAR(10),
+    Timestamp TIMESTAMP,
+    HourlyRate DECIMAL(10, 2),
+    EndDate DATE,
+    PRIMARY KEY (ZipCode, Timestamp)
+);
+
+-- Insert statements for Customer table
+INSERT INTO Customer (CustomerID, Name, BillingAddressL1, BillingAddressL2, Zipcode, Email, PhoneNumber)
+VALUES
+    (1, 'John Doe', '123 Main St', 'Apt 4', '10001', 'john.doe@example.com', '123-456-7890'),
+    (2, 'Jane Smith', '456 Oak St', 'Suite 7', '10002', 'jane.smith@example.com', '987-654-3210');
+
+-- Insert statements for ServiceLocation table
+INSERT INTO ServiceLocation (LocationID, CustomerID, Address, UnitNumber, MoveInDate, SquareFootage, Bedrooms, Occupants)
+VALUES
+    (1, 1, '789 Broadway', '3B', '2022-07-15', 1200.50, 2, 3),
+    (2, 2, '101 Pine St', 'Apt 10', '2022-08-01', 900.75, 1, 1);
+
+-- Insert statements for DeviceModel table
+INSERT INTO DeviceModel (ModelID, Type, ModelNumber)
+VALUES
+    (1, 'AC System', 'AC123'),
+    (2, 'Refrigerator', 'RF456');
+
+-- Insert statements for EnrolledDevice table
+INSERT INTO EnrolledDevice (DeviceID, LocationID, ModelID, CustomerID)
+VALUES
+    (1, 1, 1, 1),
+    (2, 2, 2, 2);
+-- Insert statements for EnergyPrice table
+INSERT INTO EnergyPrice (ZipCode, Timestamp, HourlyRate, EndDate)
+VALUES
+    ('10001', '2022-07-01 00:00:00', 0.15, '2022-07-01'),
+    ('10002', '2022-07-01 00:00:00', 0.12, '2022-07-01'),
+    ('10001', '2022-08-01 00:00:00', 0.18, '2022-08-01'),
+    ('10002', '2022-08-01 00:00:00', 0.14, '2022-08-01'),
+    ('10001', '2022-08-01 00:00:00', 0.20, '2022-08-09');
+
+-- Insert statements for DeviceHistory table
+INSERT INTO DeviceHistory (DeviceID, CustomerID, LocationID, Timestamp, EventLabel, Value)
+VALUES
+    (1, 1, 1, '2022-08-05 08:30:00', 'switched on', 30.8),
+    (2, 2, 2, '2022-07-20 15:45:00', 'door opened', 79.2),
+    (1, 1, 1, '2022-08-15 12:00:00', 'switched off', 65.0),
+    (2, 2, 2, '2022-07-23 2:00:00', 'door closed', 90.2),
+    (1, 1, 1, '2022-09-20 09:00:00', 'switched on', 66.0),
+    (1,1,1, '2022-09-21 12:00:00', 'switched off', 99.0);
+
+Show tables in shems_db;
