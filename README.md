@@ -1,5 +1,5 @@
 # SmartHomeWebsite-ReactJS-Django
-The Smart Home Energy Management System (SHEMS) project aims to address the growing need for efficient energy consumption and cost reduction in residential settings.
+Worked in a pair to develop a full-stack web application to keep track of users' energy consumption across locations and multiple smart devices. Stats displayed in front-end using React.js from the database implemented using Django.
 
 ## Overview
 The SHEMS database is a cutting-edge tool that provides customers with the ability to manage multiple service locations with ease. With its detailed information and the capability to enroll smart devices that  report energy consumption and operational events, users can gain valuable insights into their energy usage patterns. The primary objective of this project is to gather and examine past energy data, which will enable users to understand their energy consumption patterns and the associated costs better. The SHEMS database provides an in-depth analysis of energy usage, allowing users to pinpoint energy usage of different appliances and their settings. By understanding this data, users can make informed decisions to optimize their energy usage, reduce costs, and improve energy efficiency.
